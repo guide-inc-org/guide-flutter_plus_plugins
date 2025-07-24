@@ -16,8 +16,8 @@ flutter:
       android:
         package: dev.fluttercommunity.plus.sensors
         pluginClass: SensorsPlugin
-      ios:
-        pluginClass: FPPSensorsPlusPlugin
+      #ios:
+        #pluginClass: FPPSensorsPlusPlugin
       web:
         pluginClass: WebSensorsPlugin
         fileName: src/sensors_plus_web.dart
