@@ -44,7 +44,9 @@ TopViewControllerForViewController(UIViewController *viewController) {
 
 @property FlutterResult result;
 @property NSString *activityType;
-@property BOOL completed;
+@property (nonatomic, assign) BOOL completed;
+// [ADDED] flag to prevent result from being called twice (completion + dealloc)
+@property (nonatomic, assign) BOOL emitted; // [ADDED]
 
 - (id)initWithResult:(FlutterResult)result;
 
@@ -56,6 +58,7 @@ TopViewControllerForViewController(UIViewController *viewController) {
   if (self = [super init]) {
     self.result = result;
     self.completed = false;
+    self.emitted = false; // [ADDED]
   }
   return self;
 }
@@ -63,22 +66,32 @@ TopViewControllerForViewController(UIViewController *viewController) {
 // We use dealloc as the share-sheet might disappear (e.g. iCloud photo album
 // creation) and could then reappear if the user cancels
 - (void)dealloc {
+  if (self.emitted) return; // [ADDED]  already emitted elsewhere → do not emit again
   if (self.completed) {
     self.result(self.activityType);
   } else {
-    self.result(@"");
+    self.result(@"" /* canceled/dismissed */);
   }
 }
 
 @end
 
-@interface UIActivityViewSuccessController : UIActivityViewController
+// [UPDATED] conform to UIAdaptivePresentationControllerDelegate to handle dismiss events (fallback)
+@interface UIActivityViewSuccessController : UIActivityViewController <UIAdaptivePresentationControllerDelegate> // [UPDATED]
 
 @property UIActivityViewSuccessCompanion *companion;
 
 @end
 
 @implementation UIActivityViewSuccessController
+
+// [ADDED] Fallback: when the user taps X/Cancel or swipes down and the completion handler is not called
+- (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController { // [ADDED]
+  if (!self.companion || self.companion.emitted) return;
+  self.companion.emitted = YES;
+  self.companion.result(@"" /* canceled */);
+  self.companion = nil; // avoid dealloc emit second time
+}
 @end
 
 @interface SharePlusData : NSObject <UIActivityItemSource>
@@ -389,10 +402,9 @@ TopViewControllerForViewController(UIViewController *viewController) {
     [activityViewController setValue:subject forKey:@"subject"];
   }
 
-  activityViewController.popoverPresentationController.sourceView =
-      controller.view;
+  activityViewController.popoverPresentationController.sourceView = controller.view;
   activityViewController.excludedActivityTypes = @[
-          UIActivityTypeSaveToCameraRoll,
+    UIActivityTypeSaveToCameraRoll,
   ];
   BOOL isCoordinateSpaceOfSourceView =
       CGRectContainsRect(controller.view.frame, origin);
@@ -423,13 +435,33 @@ TopViewControllerForViewController(UIViewController *viewController) {
     UIActivityViewSuccessCompanion *companion =
         [[UIActivityViewSuccessCompanion alloc] initWithResult:result];
     activityViewController.companion = companion;
+
+    // [ADDED] Catch the dismiss event as a fallback when the completion handler is not called.
+    activityViewController.presentationController.delegate =
+        (id<UIAdaptivePresentationControllerDelegate>)activityViewController; // [ADDED]
+
+    // [UPDATED] Call result immediately in the completion handler; no longer rely on dealloc.
     activityViewController.completionWithItemsHandler =
         ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems,
           NSError *activityError) {
+          if (companion.emitted) return; //return
           companion.activityType = activityType;
-          companion.completed = completed;
+          companion.completed   = completed;
+          companion.emitted     = YES;
+
+          if (activityError) {
+            companion.result([FlutterError errorWithCode:@"share_error"
+                                                 message:activityError.localizedDescription
+                                                 details:nil]);
+          } else {
+            companion.result(completed ? (activityType ?: @"") : @"");
+          }
+
+          // [ADDED] Clean up here to avoid emitting a second time in dealloc.
+          activityViewController.companion = nil;
         };
   }
+
   [controller presentViewController:activityViewController
                            animated:YES
                          completion:nil];
