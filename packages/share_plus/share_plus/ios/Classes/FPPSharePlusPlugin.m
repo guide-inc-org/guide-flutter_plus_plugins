@@ -423,11 +423,19 @@ TopViewControllerForViewController(UIViewController *viewController) {
     UIActivityViewSuccessCompanion *companion =
         [[UIActivityViewSuccessCompanion alloc] initWithResult:result];
     activityViewController.companion = companion;
+    __weak UIActivityViewSuccessController *weakAVC = activityViewController;
     activityViewController.completionWithItemsHandler =
         ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems,
           NSError *activityError) {
           companion.activityType = activityType;
           companion.completed = completed;
+
+          if (@available(iOS 26.0, *)) {
+            UIActivityViewSuccessController *avc = weakAVC;
+            if (avc) {
+               avc.companion = nil;
+            }
+          }
         };
   }
   [controller presentViewController:activityViewController
