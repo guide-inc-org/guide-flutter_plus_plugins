@@ -97,6 +97,11 @@ class SharePlus {
 
     return _platform.share(params);
   }
+
+  /// Dismiss iOS share sheet only
+  Future<void> dismiss() async {
+    return _platform.dismiss();
+  }
 }
 
 @Deprecated('Use SharePlus instead')

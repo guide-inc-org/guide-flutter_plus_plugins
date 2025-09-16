@@ -34,6 +34,10 @@ class SharePlatform extends PlatformInterface {
   Future<ShareResult> share(ShareParams params) async {
     return _instance.share(params);
   }
+
+  Future<void> dismiss() {
+    return _instance.dismiss();
+  }
 }
 
 class ShareParams {

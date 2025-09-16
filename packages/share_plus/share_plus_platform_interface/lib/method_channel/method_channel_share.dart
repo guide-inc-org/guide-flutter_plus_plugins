@@ -28,6 +28,11 @@ class MethodChannelShare extends SharePlatform {
     return ShareResult(result, _statusFromResult(result));
   }
 
+  @override
+  Future<void> dismiss() {
+    return channel.invokeMethod<void>('dismiss');
+  }
+
   Future<Map<String, dynamic>> _toPlatformMap(ShareParams params) async {
     assert(
       params.text != null ||
