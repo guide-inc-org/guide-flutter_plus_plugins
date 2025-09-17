@@ -39,48 +39,6 @@ TopViewControllerForViewController(UIViewController *viewController) {
   return viewController;
 }
 
-// We need the companion to avoid ARC deadlock
-@interface UIActivityViewSuccessCompanion : NSObject
-
-@property FlutterResult result;
-@property NSString *activityType;
-@property BOOL completed;
-
-- (id)initWithResult:(FlutterResult)result;
-
-@end
-
-@implementation UIActivityViewSuccessCompanion
-
-- (id)initWithResult:(FlutterResult)result {
-  if (self = [super init]) {
-    self.result = result;
-    self.completed = false;
-  }
-  return self;
-}
-
-// We use dealloc as the share-sheet might disappear (e.g. iCloud photo album
-// creation) and could then reappear if the user cancels
-- (void)dealloc {
-  if (self.completed) {
-    self.result(self.activityType);
-  } else {
-    self.result(@"");
-  }
-}
-
-@end
-
-@interface UIActivityViewSuccessController : UIActivityViewController
-
-@property UIActivityViewSuccessCompanion *companion;
-
-@end
-
-@implementation UIActivityViewSuccessController
-@end
-
 @interface SharePlusData : NSObject <UIActivityItemSource>
 
 @property(readonly, nonatomic, copy) NSString *subject;
@@ -380,8 +338,8 @@ TopViewControllerForViewController(UIViewController *viewController) {
           atSource:(CGRect)origin
           toResult:(FlutterResult)result
         withResult:(BOOL)withResult {
-  UIActivityViewSuccessController *activityViewController =
-      [[UIActivityViewSuccessController alloc] initWithActivityItems:shareItems
+  UIActivityViewController *activityViewController =
+          [[UIActivityViewController alloc] initWithActivityItems:shareItems
                                                applicationActivities:nil];
 
   // Force subject when sharing a raw url or files
@@ -420,14 +378,14 @@ TopViewControllerForViewController(UIViewController *viewController) {
   }
 
   if (withResult) {
-    UIActivityViewSuccessCompanion *companion =
-        [[UIActivityViewSuccessCompanion alloc] initWithResult:result];
-    activityViewController.companion = companion;
     activityViewController.completionWithItemsHandler =
         ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems,
           NSError *activityError) {
-          companion.activityType = activityType;
-          companion.completed = completed;
+          if (completed) {
+            result(activityType);
+          } else {
+            result(@"");
+          }
         };
   }
   [controller presentViewController:activityViewController
